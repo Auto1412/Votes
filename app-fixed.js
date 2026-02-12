@@ -96,8 +96,34 @@ function setupTimerControls() {
     if (startBtn) startBtn.onclick = startVoting;
     if (stopBtn) stopBtn.onclick = stopVoting;
     
+    // Setup preset buttons
+    const presetButtons = document.querySelectorAll('.preset-btn');
+    presetButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const hours = parseInt(this.getAttribute('data-hours'));
+            const minutes = parseInt(this.getAttribute('data-minutes'));
+            const seconds = parseInt(this.getAttribute('data-seconds'));
+            setQuickTime(hours, minutes, seconds);
+        });
+    });
+    
     // Restore saved timer values
     restoreSavedTimer();
+}
+
+// Quick time setter function
+function setQuickTime(hours, minutes, seconds) {
+    document.getElementById("hours").value = hours;
+    document.getElementById("minutes").value = minutes;
+    document.getElementById("seconds").value = seconds;
+    
+    // Save immediately
+    localStorage.setItem("timerHours", hours);
+    localStorage.setItem("timerMinutes", minutes);
+    localStorage.setItem("timerSeconds", seconds);
+    
+    const timeText = `${hours > 0 ? hours + ' ชม. ' : ''}${minutes > 0 ? minutes + ' นาที' : ''}${seconds > 0 ? seconds + ' วินาที' : ''}`;
+    showStatus(`⏱️ ตั้งเวลา ${timeText}`, "success");
 }
 
 // Restore saved timer settings and state
@@ -488,25 +514,9 @@ async function init() {
 // Make vote function global
 window.vote = vote;
 
-// Quick time setter function
-window.setQuickTime = function(hours, minutes, seconds) {
-    document.getElementById("hours").value = hours;
-    document.getElementById("minutes").value = minutes;
-    document.getElementById("seconds").value = seconds;
-    
-    // Save immediately
-    localStorage.setItem("timerHours", hours);
-    localStorage.setItem("timerMinutes", minutes);
-    localStorage.setItem("timerSeconds", seconds);
-    
-    showStatus(`⏱️ ตั้งเวลา ${hours > 0 ? hours + ' ชม. ' : ''}${minutes > 0 ? minutes + ' นาที' : ''}${seconds > 0 ? seconds + ' วินาที' : ''}`, "success");
-};
-
 // Start the app when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
     init();
-
 }
-
