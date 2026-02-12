@@ -54,7 +54,7 @@ function setupLoginButton() {
                 const { data, error } = await supabaseClient.auth.signInWithOAuth({
                     provider: "google",
                     options: {
-                        redirectTo: "https://votes-olive.vercel.app"
+                        redirectTo: window.location.origin
                     }
                 });
                 if (error) throw error;
@@ -520,5 +520,6 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+
 
 
