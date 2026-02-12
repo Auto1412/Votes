@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เลือกหัวหน้าห้อง</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="main-title">🗳️ เลือกหัวหน้าห้อง</h1>
+            <div class="user-section">
+                <button id="login" class="login-btn">Login with Google</button>
+                <p id="user" class="user-info"></p>
+            </div>
+        </header>
+
+        <!-- Timer Section -->
+        <div class="timer-section">
+            <div class="timer-controls" id="timerControls">
+                <h3>ตั้งเวลาสิ้นสุดการโหวต</h3>
+                
+                <!-- Quick Presets -->
+                <div class="time-presets">
+                    <button class="preset-btn" data-hours="0" data-minutes="1" data-seconds="0">1 นาที</button>
+                    <button class="preset-btn" data-hours="0" data-minutes="5" data-seconds="0">5 นาที</button>
+                    <button class="preset-btn" data-hours="0" data-minutes="10" data-seconds="0">10 นาที</button>
+                    <button class="preset-btn" data-hours="0" data-minutes="30" data-seconds="0">30 นาที</button>
+                    <button class="preset-btn" data-hours="1" data-minutes="0" data-seconds="0">1 ชั่วโมง</button>
+                </div>
+                
+                <div class="time-inputs">
+                    <input type="number" id="hours" min="0" max="23" placeholder="ชั่วโมง" value="0">
+                    <span>:</span>
+                    <input type="number" id="minutes" min="0" max="59" placeholder="นาที" value="30">
+                    <span>:</span>
+                    <input type="number" id="seconds" min="0" max="59" placeholder="วินาที" value="0">
+                </div>
+                <button id="startTimer" class="start-btn">เริ่มการโหวต</button>
+            </div>
+            
+            <div class="timer-display" id="timerDisplay" style="display: none;">
+                <h3>⏰ เวลาคงเหลือ</h3>
+                <div class="countdown" id="countdown">00:30:00</div>
+                <button id="stopTimer" class="stop-btn">หยุดการโหวต</button>
+            </div>
+        </div>
+
+        <!-- Voting Status -->
+        <div class="status-message" id="status"></div>
+
+        <!-- Results Section (Hidden until voting ends) -->
+        <div class="results-section" id="results" style="display: none;">
+            <h2>🏆 ผลการโหวต</h2>
+            <div id="winner"></div>
+            <div id="finalResults"></div>
+        </div>
+
+        <!-- Candidates Section -->
+        <div class="candidates-section" id="candidatesSection">
+            <div class="candidate">
+                <div class="candidate-info">
+                    <img src="https://thethaiger.com/th/wp-content/uploads/2026/01/4HusbandTae.jpg" alt="ผู้สมัคร A" class="candidate-img">
+                    <div class="candidate-details">
+                        <h2 class="candidate-name" contenteditable="true" id="nameA">ผู้สมัคร A</h2>
+                        <p class="candidate-desc" contenteditable="true">แก้ไขชื่อและรายละเอียดได้</p>
+                    </div>
+                </div>
+                <div class="vote-section">
+                    <button onclick="vote('A')" class="vote-btn" id="btnA">
+                        <span>โหวต</span>
+                    </button>
+                    <div class="vote-count">
+                        <span class="count-label">คะแนน:</span>
+                        <span class="count-number" id="voteA">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="candidate">
+                <div class="candidate-info">
+                    <img src="https://thethaiger.com/th/wp-content/uploads/2026/01/4HusbandTae.jpg" alt="ผู้สมัคร B" class="candidate-img">
+                    <div class="candidate-details">
+                        <h2 class="candidate-name" contenteditable="true" id="nameB">ผู้สมัคร B</h2>
+                        <p class="candidate-desc" contenteditable="true">แก้ไขชื่อและรายละเอียดได้</p>
+                    </div>
+                </div>
+                <div class="vote-section">
+                    <button onclick="vote('B')" class="vote-btn" id="btnB">
+                        <span>โหวต</span>
+                    </button>
+                    <div class="vote-count">
+                        <span class="count-label">คะแนน:</span>
+                        <span class="count-number" id="voteB">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="candidate">
+                <div class="candidate-info">
+                    <img src="https://thethaiger.com/th/wp-content/uploads/2026/01/4HusbandTae.jpg" alt="ผู้สมัคร C" class="candidate-img">
+                    <div class="candidate-details">
+                        <h2 class="candidate-name" contenteditable="true" id="nameC">ผู้สมัคร C</h2>
+                        <p class="candidate-desc" contenteditable="true">แก้ไขชื่อและรายละเอียดได้</p>
+                    </div>
+                </div>
+                <div class="vote-section">
+                    <button onclick="vote('C')" class="vote-btn" id="btnC">
+                        <span>โหวต</span>
+                    </button>
+                    <div class="vote-count">
+                        <span class="count-label">คะแนน:</span>
+                        <span class="count-number" id="voteC">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>ระบบโหวตออนไลน์ | พัฒนาด้วย Supabase</p>
+        </footer>
+    </div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="app-fixed.js"></script>
+</body>
+</html>
