@@ -3,7 +3,7 @@ const { createClient } = supabase;
 
 const supabaseClient = createClient(
     "https://onyapxclnfsdgcwisnhx.supabase.co",
-    "468813238358-mb8167l123bflg76hf40jqunl4v88eqo.apps.googleusercontent.com"
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueWFweGNsbmZzZGdjd2lzbmh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4ODQzMDksImV4cCI6MjA4NjQ2MDMwOX0.MkzFOJ_Ucs_t7Led5smGsj4deX_rtPbAHXAD_BaI-ns"
 );
 
 // Global variables
@@ -509,3 +509,4 @@ if (document.readyState === 'loading') {
     init();
 
 }
+
