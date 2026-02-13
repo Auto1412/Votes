@@ -74,7 +74,7 @@ function setupLoginButton() {
                 const { data, error } = await supabaseClient.auth.signInWithOAuth({
                     provider: "google",
                     options: {
-                        redirectTo: "https://votes-olive.vercel.app"
+                        redirectTo: window.location.origin
                     }
                 });
                 if (error) throw error;
@@ -116,9 +116,11 @@ async function checkIfUserVoted() {
 function setupTimerControls() {
     const startBtn = document.getElementById("startTimer");
     const stopBtn = document.getElementById("stopTimer");
+    const resetBtn = document.getElementById("resetVotes");
     
     if (startBtn) startBtn.onclick = startVoting;
     if (stopBtn) stopBtn.onclick = stopVoting;
+    if (resetBtn) resetBtn.onclick = resetVotes;
     
     // Setup preset buttons
     const presetButtons = document.querySelectorAll('.preset-btn');
@@ -272,6 +274,79 @@ function stopVoting() {
     
     if (confirm("คุณต้องการหยุดการโหวตและประกาศผลใช่หรือไม่?")) {
         endVoting();
+    }
+}
+
+// Reset all votes - Admin only
+async function resetVotes() {
+    if (!isAdmin()) {
+        showStatus("⚠️ เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถรีเซ็ตการโหวต", "error");
+        return;
+    }
+    
+    const confirmText = "คุณแน่ใจหรือไม่ที่จะลบข้อมูลการโหวตทั้งหมด?\n\n⚠️ การดำเนินการนี้ไม่สามารถย้อนกลับได้!\n\nพิมพ์ 'RESET' เพื่อยืนยัน";
+    const userInput = prompt(confirmText);
+    
+    if (userInput !== "RESET") {
+        showStatus("ยกเลิกการรีเซ็ต", "info");
+        return;
+    }
+    
+    try {
+        showStatus("🔄 กำลังรีเซ็ตข้อมูล...", "info");
+        
+        // Call the reset_votes RPC function
+        const { data, error } = await supabaseClient
+            .rpc("reset_votes");
+        
+        if (error) {
+            console.error("Reset error:", error);
+            throw error;
+        }
+        
+        console.log("✅ Reset successful");
+        
+        // Reset local state
+        voteCounts.A = 0;
+        voteCounts.B = 0;
+        voteCounts.C = 0;
+        hasVoted = false;
+        
+        // Update UI
+        updateVoteDisplay("A");
+        updateVoteDisplay("B");
+        updateVoteDisplay("C");
+        
+        // Re-enable voting buttons
+        const btnA = document.getElementById("btnA");
+        const btnB = document.getElementById("btnB");
+        const btnC = document.getElementById("btnC");
+        if (btnA) btnA.disabled = false;
+        if (btnB) btnB.disabled = false;
+        if (btnC) btnC.disabled = false;
+        
+        // Hide results
+        document.getElementById("results").style.display = "none";
+        
+        // Clear voting state
+        votingActive = false;
+        clearInterval(votingTimer);
+        localStorage.removeItem("votingActive");
+        localStorage.removeItem("endTime");
+        
+        // Show timer controls
+        document.getElementById("timerDisplay").style.display = "none";
+        document.getElementById("timerControls").style.display = "block";
+        document.getElementById("candidatesSection").classList.remove("voting-closed");
+        
+        showStatus("✅ รีเซ็ตการโหวตสำเร็จ! พร้อมเริ่มใหม่", "success");
+        
+        // Reload data to confirm
+        await loadCandidatesFromDB();
+        
+    } catch (error) {
+        console.error("Error resetting votes:", error);
+        showStatus("❌ เกิดข้อผิดพลาดในการรีเซ็ต: " + error.message, "error");
     }
 }
 
@@ -551,6 +626,7 @@ async function init() {
 
 // Make vote function global
 window.vote = vote;
+window.resetVotes = resetVotes;
 
 // Start the app when DOM is ready
 if (document.readyState === 'loading') {
