@@ -243,6 +243,8 @@ async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
         voteCounts.A = 0;
         voteCounts.B = 0;
         voteCounts.C = 0;
+        
+        // CRITICAL: Reset hasVoted for ALL users (including current user)
         hasVoted = false;
         
         // Update vote display
@@ -250,7 +252,7 @@ async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
         updateVoteDisplay("B");
         updateVoteDisplay("C");
         
-        // Enable voting buttons
+        // Enable voting buttons for everyone
         const btnA = document.getElementById("btnA");
         const btnB = document.getElementById("btnB");
         const btnC = document.getElementById("btnC");
@@ -283,8 +285,13 @@ async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
         updateCountdown();
         votingTimer = setInterval(updateCountdown, 1000);
         
-        // Reload data to confirm
+        // Reload data to confirm and recheck vote status
         await loadCandidatesFromDB();
+        
+        // Recheck if current user has voted (should be false after reset)
+        if (user) {
+            await checkIfUserVoted();
+        }
         
     } catch (error) {
         console.error("Error resetting and starting:", error);
@@ -445,6 +452,24 @@ async function vote(candidateId) {
     }
 
     try {
+        // Double-check if user has already voted (in case of race condition)
+        const { data: existingVote, error: checkError } = await supabaseClient
+            .from("votes")
+            .select("*")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+            throw checkError;
+        }
+
+        if (existingVote) {
+            hasVoted = true;
+            disableVotingButtons();
+            showStatus("⚠️ คุณได้ทำการโหวตไปแล้ว", "error");
+            return;
+        }
+
         // Record vote in database
         const { data: voteData, error: voteError } = await supabaseClient
             .from("votes")
@@ -457,6 +482,15 @@ async function vote(candidateId) {
 
         if (voteError) {
             console.error("Vote error:", voteError);
+            
+            // Handle duplicate key error specifically
+            if (voteError.code === '23505') {
+                hasVoted = true;
+                disableVotingButtons();
+                showStatus("⚠️ คุณได้ทำการโหวตไปแล้ว", "error");
+                return;
+            }
+            
             throw voteError;
         }
 
