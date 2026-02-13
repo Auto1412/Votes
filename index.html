@@ -39,6 +39,16 @@
                     <input type="number" id="seconds" min="0" max="59" placeholder="วินาที" value="0">
                 </div>
                 <button id="startTimer" class="start-btn">เริ่มการโหวต</button>
+                
+                <!-- Reset Button -->
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+                    <button id="resetVotes" class="reset-btn" style="background: #dc3545; width: 100%;">
+                        🗑️ รีเซ็ตการโหวตทั้งหมด
+                    </button>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 8px; text-align: center;">
+                        ⚠️ จะลบคะแนนและข้อมูลการโหวตทั้งหมด
+                    </p>
+                </div>
             </div>
             
             <div class="timer-display" id="timerDisplay" style="display: none;">
@@ -124,6 +134,6 @@
     </div>
 
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="app-fixed.js"></script>
+    <script src="app-fixed-improved.js"></script>
 </body>
 </html>
