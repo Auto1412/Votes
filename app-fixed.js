@@ -224,7 +224,7 @@ const supabaseClient = createClient(
  // ===============================
  async function vote(candidateId) {
  
-@@ -234,53 +276,53 @@ async function vote(candidateId) {
+async function vote(candidateId) {
      }
  
      const { error } = await supabaseClient.rpc("cast_vote", {
@@ -250,12 +250,12 @@ const supabaseClient = createClient(
          return;
      }
  
--    const hours = parseInt(document.getElementById("hours").value) || 0;
--    const minutes = parseInt(document.getElementById("minutes").value) || 0;
--    const seconds = parseInt(document.getElementById("seconds").value) || 0;
-+    const hours = normalizeTimeInput("hours", 0, 23);
-+    const minutes = normalizeTimeInput("minutes", 0, 59);
-+    const seconds = normalizeTimeInput("seconds", 0, 59);
+       const hours = parseInt(document.getElementById("hours").value) || 0;
+  const minutes = parseInt(document.getElementById("minutes").value) || 0;
+  const seconds = parseInt(document.getElementById("seconds").value) || 0;
+     const hours = normalizeTimeInput("hours", 0, 23);
+    const minutes = normalizeTimeInput("minutes", 0, 59);
+   const seconds = normalizeTimeInput("seconds", 0, 59);
  
      const totalSeconds = hours * 3600 + minutes * 60 + seconds;
  
@@ -281,7 +281,7 @@ const supabaseClient = createClient(
          return;
      }
  
-@@ -308,50 +350,51 @@ function disableVotingButtons() {
+function disableVotingButtons() {
  
  function updateVoteDisplay(id) {
      const el = document.getElementById("vote" + id);
@@ -307,7 +307,7 @@ const supabaseClient = createClient(
  async function init() {
      setupAuthListener();
      setupLoginButton();
-+    setupPresetButtons();
+     setupPresetButtons();
  
      // ✅ ผูกปุ่มเริ่มโหวต
      const startBtn = document.getElementById("startTimer");
