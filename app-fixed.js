@@ -9,6 +9,54 @@ const supabaseClient = createClient(
     "YOUR_ANON_KEY"
 );
 
+let endTime = null;
+let votingTimer = null;
+async function loadVotingStatus() {
+    const { data } = await supabaseClient
+        .from("voting_settings")
+        .select("*")
+        .eq("id", 1)
+        .single();
+
+    if (!data) return;
+
+    votingActive = data.is_active;
+    endTime = data.end_time ? new Date(data.end_time).getTime() : null;
+
+    updateVotingStatusDisplay();
+
+    if (votingActive && endTime) {
+        startCountdown();
+    }
+}
+function startCountdown() {
+    if (votingTimer) clearInterval(votingTimer);
+
+    votingTimer = setInterval(() => {
+        const remaining = endTime - Date.now();
+
+        if (remaining <= 0) {
+            clearInterval(votingTimer);
+            votingActive = false;
+            updateVotingStatusDisplay();
+            return;
+        }
+
+        const h = Math.floor(remaining / 3600000);
+        const m = Math.floor((remaining % 3600000) / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+
+        const display = 
+            String(h).padStart(2, '0') + ":" +
+            String(m).padStart(2, '0') + ":" +
+            String(s).padStart(2, '0');
+
+        const el = document.getElementById("countdown");
+        if (el) el.innerText = display;
+
+    }, 1000);
+}
+
 // Global variables
 let user = null;
 let votingActive = false;
@@ -201,8 +249,24 @@ async function vote(candidateId) {
 async function startVoting() {
     if (!isAdmin()) return;
 
+    const hours = parseInt(document.getElementById("hours").value) || 0;
+    const minutes = parseInt(document.getElementById("minutes").value) || 0;
+    const seconds = parseInt(document.getElementById("seconds").value) || 0;
+
+    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+
+    if (totalSeconds <= 0) {
+        alert("ตั้งเวลามากกว่า 0");
+        return;
+    }
+
     await supabaseClient.rpc("reset_voting");
-    await supabaseClient.rpc("open_voting");
+    await supabaseClient.rpc("open_voting", {
+        duration_seconds: totalSeconds
+    });
+
+    await loadCandidatesFromDB();
+    await loadVotingStatus();
 }
 
 async function stopVoting() {
