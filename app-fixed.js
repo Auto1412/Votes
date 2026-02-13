@@ -1,10 +1,14 @@
- (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
-diff --git a/app-fixed.js b/app-fixed.js
-index 2b03ff567c30f57fdcbc09ef8b30ddf3009af5b7..f94381b925c05fa3e7b5263526bf46c5b2bdce74 100644
---- a/app-fixed.js
-+++ b/app-fixed.js
-@@ -11,50 +11,51 @@ const supabaseClient = createClient(
- 
+// Admin Email Configuration
+const ADMIN_EMAILS = ["xeeaae7@gmail.com"];
+
+// Initialize Supabase
+const { createClient } = supabase;
+
+const supabaseClient = createClient(
+    "https://onyapxclnfsdgcwisnhx.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueWFweGNsbmZzZGdjd2lzbmh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4ODQzMDksImV4cCI6MjA4NjQ2MDMwOX0.MkzFOJ_Ucs_t7Led5smGsj4deX_rtPbAHXAD_BaI-ns"
+);
+
  let endTime = null;
  let votingTimer = null;
  
