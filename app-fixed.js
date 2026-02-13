@@ -172,6 +172,7 @@ function setupRealtimeSubscription() {
                     startCountdown();
                 } else if (votingTimer) {
                     clearInterval(votingTimer);
+                    votingTimer = null;
                 }
 
                 updateVotingStatusDisplay();
@@ -235,9 +236,13 @@ function applyPreset(hours, minutes, seconds) {
 
     if (!hoursInput || !minutesInput || !secondsInput) return;
 
-    hoursInput.value = hours;
-    minutesInput.value = minutes;
-    secondsInput.value = seconds;
+    hoursInput.value = String(hours);
+    minutesInput.value = String(minutes);
+    secondsInput.value = String(seconds);
+
+    normalizeTimeInput("hours", 0, 23);
+    normalizeTimeInput("minutes", 0, 59);
+    normalizeTimeInput("seconds", 0, 59);
 }
 
 function setupPresetButtons() {
@@ -258,6 +263,7 @@ function setupTimeInputValidation() {
         if (!input) return;
 
         const normalize = () => normalizeTimeInput(id, min, max);
+        input.addEventListener("input", normalize);
         input.addEventListener("change", normalize);
         input.addEventListener("blur", normalize);
     });
