@@ -330,6 +330,19 @@ function showStatus(message, type = "info") {
 async function init() {
     setupAuthListener();
     setupLoginButton();
+
+    // ✅ ผูกปุ่มเริ่มโหวต
+    const startBtn = document.getElementById("startTimer");
+    if (startBtn) {
+        startBtn.addEventListener("click", startVoting);
+    }
+
+    // ✅ ผูกปุ่มหยุดโหวต
+    const stopBtn = document.getElementById("stopTimer");
+    if (stopBtn) {
+        stopBtn.addEventListener("click", stopVoting);
+    }
+
     await loadCandidatesFromDB();
     await loadVotingStatus();
     setupRealtimeSubscription();
