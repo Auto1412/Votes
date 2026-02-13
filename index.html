@@ -6,15 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>เลือกหัวหน้าห้อง</title>
     <link rel="stylesheet" href="style.css">
-<header>
-  <user-section>
-    <!-- User section content -->
-  </user-section>
-  <div class="admin-warning">
-    <strong>Admin Warning:</strong> Please ensure to follow the guidelines when managing user accounts.
-  </div>
-</header>
-    
 </head>
 <body>
     <div class="container">
@@ -28,6 +19,13 @@
 
         <!-- Timer Section -->
         <div class="timer-section">
+            <!-- Voting Status Display for All Users -->
+            <div class="voting-status-container" id="votingStatus" style="display: none;">
+                <div class="voting-status inactive">
+                    <span class="status-badge">⚪ การโหวตยังไม่เริ่ม</span>
+                </div>
+            </div>
+
             <div class="timer-controls" id="timerControls">
                 <h3>ตั้งเวลาสิ้นสุดการโหวต</h3>
                 
