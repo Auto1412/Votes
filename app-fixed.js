@@ -15,6 +15,7 @@ let votingTimer = null;
 let votingActive = false;
 let hasVoted = false;
 let endTime = null;
+let sessionCheckInterval = null;
 
 // Vote counts (synced with database)
 const voteCounts = {
@@ -157,9 +158,9 @@ function setQuickTime(hours, minutes, seconds) {
     showStatus(`⏱️ ตั้งเวลา ${timeText}`, "success");
 }
 
-// Restore saved timer settings and state
+// Restore saved timer settings - VERSION 1412 (simplified)
 function restoreSavedTimer() {
-    // Restore timer input values
+    // Restore timer input values only
     const savedHours = localStorage.getItem("timerHours");
     const savedMinutes = localStorage.getItem("timerMinutes");
     const savedSeconds = localStorage.getItem("timerSeconds");
@@ -168,34 +169,7 @@ function restoreSavedTimer() {
     if (savedMinutes) document.getElementById("minutes").value = savedMinutes;
     if (savedSeconds) document.getElementById("seconds").value = savedSeconds;
     
-    // Check if there was an active voting session
-    const wasVotingActive = localStorage.getItem("votingActive") === "true";
-    const savedEndTime = parseInt(localStorage.getItem("endTime"));
-    
-    if (wasVotingActive && savedEndTime) {
-        const now = Date.now();
-        
-        // If voting session hasn't ended yet, resume it
-        if (savedEndTime > now) {
-            votingActive = true;
-            endTime = savedEndTime;
-            
-            // Show timer display
-            document.getElementById("timerControls").style.display = "none";
-            document.getElementById("timerDisplay").style.display = "block";
-            document.getElementById("results").style.display = "none";
-            document.getElementById("candidatesSection").classList.remove("voting-closed");
-            
-            showStatus("🔄 กลับมาที่เซสชันโหวต", "info");
-            
-            // Resume countdown
-            updateCountdown();
-            votingTimer = setInterval(updateCountdown, 1000);
-        } else {
-            // Voting session has ended, show results
-            endVoting();
-        }
-    }
+    // Note: Voting session state is loaded from database in init()
 }
 
 function startVoting() {
@@ -224,7 +198,7 @@ function startVoting() {
     resetVotesAndStart(hours, minutes, seconds, totalSeconds);
 }
 
-// New function: Reset votes then start voting
+// New function: Reset votes then start voting - VERSION 1412
 async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
     try {
         showStatus("🔄 กำลังรีเซ็ตและเริ่มการโหวต...", "info");
@@ -243,8 +217,6 @@ async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
         voteCounts.A = 0;
         voteCounts.B = 0;
         voteCounts.C = 0;
-        
-        // CRITICAL: Reset hasVoted for ALL users (including current user)
         hasVoted = false;
         
         // Update vote display
@@ -260,18 +232,26 @@ async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
         if (btnB) btnB.disabled = false;
         if (btnC) btnC.disabled = false;
         
-        // Save timer settings
-        localStorage.setItem("timerHours", hours);
-        localStorage.setItem("timerMinutes", minutes);
-        localStorage.setItem("timerSeconds", seconds);
-
-        // Start voting session
+        // VERSION 1412: Start session in database
+        const { error: sessionError } = await supabaseClient
+            .rpc("start_voting_session", {
+                duration_seconds: totalSeconds,
+                admin_email: user?.email || "admin"
+            });
+        
+        if (sessionError) {
+            console.error("Session start error:", sessionError);
+            throw sessionError;
+        }
+        
+        // Update local state
         votingActive = true;
         endTime = Date.now() + totalSeconds * 1000;
         
-        // Save voting state
-        localStorage.setItem("votingActive", "true");
-        localStorage.setItem("endTime", endTime);
+        // Save timer settings (for UI only)
+        localStorage.setItem("timerHours", hours);
+        localStorage.setItem("timerMinutes", minutes);
+        localStorage.setItem("timerSeconds", seconds);
 
         // Show timer display, hide controls and results
         document.getElementById("timerControls").style.display = "none";
@@ -283,12 +263,12 @@ async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
 
         // Start countdown
         updateCountdown();
+        if (votingTimer) clearInterval(votingTimer);
         votingTimer = setInterval(updateCountdown, 1000);
         
         // Reload data to confirm and recheck vote status
         await loadCandidatesFromDB();
         
-        // Recheck if current user has voted (should be false after reset)
         if (user) {
             await checkIfUserVoted();
         }
@@ -332,7 +312,7 @@ function stopVoting() {
     }
     
     if (confirm("คุณต้องการหยุดการโหวตและประกาศผลใช่หรือไม่?")) {
-        endVoting();
+        stopVotingSession();
     }
 }
 
@@ -409,11 +389,27 @@ async function resetVotes() {
     }
 }
 
+async function stopVotingSession() {
+    try {
+        // Update database
+        const { error } = await supabaseClient.rpc("stop_voting_session");
+        
+        if (error) {
+            console.error("Error stopping session:", error);
+        }
+        
+        endVoting();
+    } catch (error) {
+        console.error("Error in stopVotingSession:", error);
+        endVoting();
+    }
+}
+
 function endVoting() {
     clearInterval(votingTimer);
     votingActive = false;
     
-    // Clear saved voting state
+    // Clear saved voting state (legacy)
     localStorage.removeItem("votingActive");
     localStorage.removeItem("endTime");
 
@@ -564,6 +560,58 @@ async function loadCandidatesFromDB() {
     }
 }
 
+// VERSION 1412: Load voting session state from database
+async function loadVotingSession() {
+    try {
+        const { data, error } = await supabaseClient
+            .from("voting_session")
+            .select("*")
+            .eq("id", 1)
+            .single();
+
+        if (error) {
+            console.error("Error loading session:", error);
+            return;
+        }
+
+        if (data) {
+            console.log("📊 Voting session loaded:", data);
+            
+            votingActive = data.is_active;
+            
+            if (data.is_active && data.end_time) {
+                endTime = new Date(data.end_time).getTime();
+                const now = Date.now();
+                
+                // Check if expired
+                if (endTime <= now) {
+                    console.log("⏰ Session expired");
+                    await stopVotingSession();
+                    return;
+                }
+                
+                // Show timer
+                document.getElementById("timerControls").style.display = "none";
+                document.getElementById("timerDisplay").style.display = "block";
+                document.getElementById("results").style.display = "none";
+                document.getElementById("candidatesSection").classList.remove("voting-closed");
+                
+                // Start countdown
+                updateCountdown();
+                if (votingTimer) clearInterval(votingTimer);
+                votingTimer = setInterval(updateCountdown, 1000);
+                
+                console.log("✅ Voting active - timer running");
+            } else {
+                console.log("❌ Voting not active");
+                votingActive = false;
+            }
+        }
+    } catch (error) {
+        console.error("Error loading voting session:", error);
+    }
+}
+
 // Update vote display - NO MORE localStorage for vote counts
 function updateVoteDisplay(candidateId) {
     const element = document.getElementById(`vote${candidateId}`);
@@ -572,7 +620,7 @@ function updateVoteDisplay(candidateId) {
     }
 }
 
-// Setup Realtime Subscription - IMPROVED
+// Setup Realtime Subscription - IMPROVED - VERSION 1412
 function setupRealtimeSubscription() {
     // Listen to candidates table for vote count updates
     supabaseClient
@@ -621,6 +669,26 @@ function setupRealtimeSubscription() {
         )
         .subscribe((status) => {
             console.log("Votes channel status:", status);
+        });
+
+    // VERSION 1412: Listen to voting_session changes
+    supabaseClient
+        .channel("session_channel")
+        .on(
+            "postgres_changes",
+            {
+                event: "UPDATE",
+                schema: "public",
+                table: "voting_session"
+            },
+            (payload) => {
+                console.log("🎯 Voting session updated:", payload);
+                // Reload session immediately
+                loadVotingSession();
+            }
+        )
+        .subscribe((status) => {
+            console.log("Session channel status:", status);
         });
 }
 
@@ -692,9 +760,9 @@ function showStatus(message, type = "info") {
     }
 }
 
-// Initialize app
+// Initialize app - VERSION 1412
 async function init() {
-    console.log("🚀 Initializing app...");
+    console.log("🚀 Initializing app... VERSION 1412");
     
     setupAuthListener();
     setupLoginButton();
@@ -703,11 +771,18 @@ async function init() {
     // CRITICAL: Always load vote counts from database on page load
     await loadCandidatesFromDB();
     
+    // VERSION 1412: Load voting session state
+    await loadVotingSession();
+    
     // Setup realtime updates
     setupRealtimeSubscription();
     
-    console.log("✅ App initialized!");
+    // Check session every 5 seconds
+    sessionCheckInterval = setInterval(loadVotingSession, 5000);
+    
+    console.log("✅ App initialized! VERSION 1412");
     console.log("Current vote counts:", voteCounts);
+    console.log("Voting active:", votingActive);
 }
 
 // Make vote function global
