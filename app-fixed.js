@@ -135,7 +135,7 @@ async function loadCandidatesFromDB() {
     });
 }
 
-async function () {
+async function loadVotingStatus() {
     const { data } = await supabaseClient
         .from("voting_settings")
         .select("*")
