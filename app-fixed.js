@@ -215,29 +215,81 @@ function startVoting() {
         return;
     }
 
-    // Save timer settings
-    localStorage.setItem("timerHours", hours);
-    localStorage.setItem("timerMinutes", minutes);
-    localStorage.setItem("timerSeconds", seconds);
+    // Confirm before resetting and starting
+    if (!confirm("เริ่มการโหวตใหม่?\n\n⚠️ ระบบจะรีเซ็ตคะแนนทั้งหมดและเริ่มนับใหม่")) {
+        return;
+    }
 
-    votingActive = true;
-    endTime = Date.now() + totalSeconds * 1000;
-    
-    // Save voting state
-    localStorage.setItem("votingActive", "true");
-    localStorage.setItem("endTime", endTime);
+    // Reset votes before starting
+    resetVotesAndStart(hours, minutes, seconds, totalSeconds);
+}
 
-    // Show timer display, hide controls
-    document.getElementById("timerControls").style.display = "none";
-    document.getElementById("timerDisplay").style.display = "block";
-    document.getElementById("results").style.display = "none";
-    document.getElementById("candidatesSection").classList.remove("voting-closed");
+// New function: Reset votes then start voting
+async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
+    try {
+        showStatus("🔄 กำลังรีเซ็ตและเริ่มการโหวต...", "info");
+        
+        // Call reset_votes RPC function
+        const { error: resetError } = await supabaseClient.rpc("reset_votes");
+        
+        if (resetError) {
+            console.error("Reset error:", resetError);
+            throw resetError;
+        }
+        
+        console.log("✅ Reset successful, starting new session...");
+        
+        // Reset local state
+        voteCounts.A = 0;
+        voteCounts.B = 0;
+        voteCounts.C = 0;
+        hasVoted = false;
+        
+        // Update vote display
+        updateVoteDisplay("A");
+        updateVoteDisplay("B");
+        updateVoteDisplay("C");
+        
+        // Enable voting buttons
+        const btnA = document.getElementById("btnA");
+        const btnB = document.getElementById("btnB");
+        const btnC = document.getElementById("btnC");
+        if (btnA) btnA.disabled = false;
+        if (btnB) btnB.disabled = false;
+        if (btnC) btnC.disabled = false;
+        
+        // Save timer settings
+        localStorage.setItem("timerHours", hours);
+        localStorage.setItem("timerMinutes", minutes);
+        localStorage.setItem("timerSeconds", seconds);
 
-    showStatus("🗳️ การโหวตเริ่มแล้ว!", "success");
+        // Start voting session
+        votingActive = true;
+        endTime = Date.now() + totalSeconds * 1000;
+        
+        // Save voting state
+        localStorage.setItem("votingActive", "true");
+        localStorage.setItem("endTime", endTime);
 
-    // Start countdown
-    updateCountdown();
-    votingTimer = setInterval(updateCountdown, 1000);
+        // Show timer display, hide controls and results
+        document.getElementById("timerControls").style.display = "none";
+        document.getElementById("timerDisplay").style.display = "block";
+        document.getElementById("results").style.display = "none";
+        document.getElementById("candidatesSection").classList.remove("voting-closed");
+
+        showStatus("🗳️ รีเซ็ตเสร็จสิ้น! การโหวตเริ่มแล้ว", "success");
+
+        // Start countdown
+        updateCountdown();
+        votingTimer = setInterval(updateCountdown, 1000);
+        
+        // Reload data to confirm
+        await loadCandidatesFromDB();
+        
+    } catch (error) {
+        console.error("Error resetting and starting:", error);
+        showStatus("❌ เกิดข้อผิดพลาด: " + error.message, "error");
+    }
 }
 
 function updateCountdown() {
