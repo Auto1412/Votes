@@ -1,3 +1,8 @@
+// =========================================
+// VERSION 1413 - Complete JavaScript
+// Dynamic Candidate Management + Voting Session
+// =========================================
+
 // Admin Email Configuration
 const ADMIN_EMAILS = ["xeeaae7@gmail.com"];
 
@@ -17,12 +22,9 @@ let hasVoted = false;
 let endTime = null;
 let sessionCheckInterval = null;
 
-// Vote counts (synced with database)
-const voteCounts = {
-    A: 0,
-    B: 0,
-    C: 0
-};
+// VERSION 1413: Dynamic candidates
+let allCandidates = [];
+const voteCounts = {}; // Will be populated dynamically
 
 // Check if user is admin
 function isAdmin() {
@@ -58,11 +60,14 @@ function updateUIForAuthState() {
 // Update timer section visibility based on admin status
 function updateTimerVisibility() {
     const timerControls = document.getElementById("timerControls");
+    const candidateManagement = document.getElementById("candidateManagement");
     
     if (isAdmin()) {
         if (timerControls) timerControls.style.display = "block";
+        if (candidateManagement) candidateManagement.style.display = "block";
     } else {
         if (timerControls) timerControls.style.display = "none";
+        if (candidateManagement) candidateManagement.style.display = "none";
     }
 }
 
@@ -117,11 +122,9 @@ async function checkIfUserVoted() {
 function setupTimerControls() {
     const startBtn = document.getElementById("startTimer");
     const stopBtn = document.getElementById("stopTimer");
-    const resetBtn = document.getElementById("resetVotes");
     
     if (startBtn) startBtn.onclick = startVoting;
     if (stopBtn) stopBtn.onclick = stopVoting;
-    if (resetBtn) resetBtn.onclick = resetVotes;
     
     // Setup preset buttons
     const presetButtons = document.querySelectorAll('.preset-btn');
@@ -158,7 +161,7 @@ function setQuickTime(hours, minutes, seconds) {
     showStatus(`⏱️ ตั้งเวลา ${timeText}`, "success");
 }
 
-// Restore saved timer settings - VERSION 1412 (simplified)
+// Restore saved timer settings - VERSION 1413 (simplified)
 function restoreSavedTimer() {
     // Restore timer input values only
     const savedHours = localStorage.getItem("timerHours");
@@ -198,7 +201,7 @@ function startVoting() {
     resetVotesAndStart(hours, minutes, seconds, totalSeconds);
 }
 
-// New function: Reset votes then start voting - VERSION 1412
+// New function: Reset votes then start voting - VERSION 1413
 async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
     try {
         showStatus("🔄 กำลังรีเซ็ตและเริ่มการโหวต...", "info");
@@ -213,24 +216,16 @@ async function resetVotesAndStart(hours, minutes, seconds, totalSeconds) {
         
         console.log("✅ Reset successful, starting new session...");
         
-        // Reset local state
-        voteCounts.A = 0;
-        voteCounts.B = 0;
-        voteCounts.C = 0;
+        // Reset local state for all candidates
+        allCandidates.forEach(candidate => {
+            voteCounts[candidate.id] = 0;
+            updateVoteDisplay(candidate.id);
+        });
+        
         hasVoted = false;
         
-        // Update vote display
-        updateVoteDisplay("A");
-        updateVoteDisplay("B");
-        updateVoteDisplay("C");
-        
         // Enable voting buttons for everyone
-        const btnA = document.getElementById("btnA");
-        const btnB = document.getElementById("btnB");
-        const btnC = document.getElementById("btnC");
-        if (btnA) btnA.disabled = false;
-        if (btnB) btnB.disabled = false;
-        if (btnC) btnC.disabled = false;
+        enableVotingButtons();
         
         // VERSION 1412: Start session in database
         const { error: sessionError } = await supabaseClient
@@ -284,7 +279,7 @@ function updateCountdown() {
     const remaining = Math.max(0, endTime - now);
 
     if (remaining <= 0) {
-        endVoting();
+        stopVotingSession();
         return;
     }
 
@@ -316,79 +311,6 @@ function stopVoting() {
     }
 }
 
-// Reset all votes - Admin only
-async function resetVotes() {
-    if (!isAdmin()) {
-        showStatus("⚠️ เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถรีเซ็ตการโหวต", "error");
-        return;
-    }
-    
-    const confirmText = "คุณแน่ใจหรือไม่ที่จะลบข้อมูลการโหวตทั้งหมด?\n\n⚠️ การดำเนินการนี้ไม่สามารถย้อนกลับได้!\n\nพิมพ์ 'RESET' เพื่อยืนยัน";
-    const userInput = prompt(confirmText);
-    
-    if (userInput !== "RESET") {
-        showStatus("ยกเลิกการรีเซ็ต", "info");
-        return;
-    }
-    
-    try {
-        showStatus("🔄 กำลังรีเซ็ตข้อมูล...", "info");
-        
-        // Call the reset_votes RPC function
-        const { data, error } = await supabaseClient
-            .rpc("reset_votes");
-        
-        if (error) {
-            console.error("Reset error:", error);
-            throw error;
-        }
-        
-        console.log("✅ Reset successful");
-        
-        // Reset local state
-        voteCounts.A = 0;
-        voteCounts.B = 0;
-        voteCounts.C = 0;
-        hasVoted = false;
-        
-        // Update UI
-        updateVoteDisplay("A");
-        updateVoteDisplay("B");
-        updateVoteDisplay("C");
-        
-        // Re-enable voting buttons
-        const btnA = document.getElementById("btnA");
-        const btnB = document.getElementById("btnB");
-        const btnC = document.getElementById("btnC");
-        if (btnA) btnA.disabled = false;
-        if (btnB) btnB.disabled = false;
-        if (btnC) btnC.disabled = false;
-        
-        // Hide results
-        document.getElementById("results").style.display = "none";
-        
-        // Clear voting state
-        votingActive = false;
-        clearInterval(votingTimer);
-        localStorage.removeItem("votingActive");
-        localStorage.removeItem("endTime");
-        
-        // Show timer controls
-        document.getElementById("timerDisplay").style.display = "none";
-        document.getElementById("timerControls").style.display = "block";
-        document.getElementById("candidatesSection").classList.remove("voting-closed");
-        
-        showStatus("✅ รีเซ็ตการโหวตสำเร็จ! พร้อมเริ่มใหม่", "success");
-        
-        // Reload data to confirm
-        await loadCandidatesFromDB();
-        
-    } catch (error) {
-        console.error("Error resetting votes:", error);
-        showStatus("❌ เกิดข้อผิดพลาดในการรีเซ็ต: " + error.message, "error");
-    }
-}
-
 async function stopVotingSession() {
     try {
         // Update database
@@ -408,10 +330,6 @@ async function stopVotingSession() {
 function endVoting() {
     clearInterval(votingTimer);
     votingActive = false;
-    
-    // Clear saved voting state (legacy)
-    localStorage.removeItem("votingActive");
-    localStorage.removeItem("endTime");
 
     // Hide timer, show results
     document.getElementById("timerDisplay").style.display = "none";
@@ -515,22 +433,88 @@ async function vote(candidateId) {
 }
 
 function disableVotingButtons() {
-    const btnA = document.getElementById("btnA");
-    const btnB = document.getElementById("btnB");
-    const btnC = document.getElementById("btnC");
-    
-    if (btnA) btnA.disabled = true;
-    if (btnB) btnB.disabled = true;
-    if (btnC) btnC.disabled = true;
+    allCandidates.forEach(candidate => {
+        const btn = document.getElementById(`btn${candidate.id}`);
+        if (btn) btn.disabled = true;
+    });
 }
 
-// Load vote counts from database - CRITICAL FIX
+function enableVotingButtons() {
+    allCandidates.forEach(candidate => {
+        const btn = document.getElementById(`btn${candidate.id}`);
+        if (btn) btn.disabled = false;
+    });
+}
+
+// VERSION 1413: Render candidates dynamically
+function renderCandidates() {
+    const container = document.getElementById("candidatesSection");
+    if (!container) return;
+    
+    container.innerHTML = "";
+    
+    allCandidates
+        .sort((a, b) => a.display_order - b.display_order)
+        .forEach(candidate => {
+            const candidateDiv = document.createElement("div");
+            candidateDiv.className = "candidate";
+            candidateDiv.id = `candidate-${candidate.id}`;
+            
+            candidateDiv.innerHTML = `
+                ${isAdmin() && !votingActive ? `
+                    <button class="delete-candidate-btn" onclick="deleteCandidate('${candidate.id}')">
+                        🗑️ ลบ
+                    </button>
+                ` : ''}
+                
+                <div class="candidate-info">
+                    <img src="${candidate.image_url || 'https://via.placeholder.com/150'}" 
+                         alt="${candidate.name}" 
+                         class="candidate-img"
+                         onerror="this.src='https://via.placeholder.com/150'">
+                    <div class="candidate-details">
+                        <h2 class="candidate-name" 
+                            contenteditable="${isAdmin() && !votingActive ? 'true' : 'false'}" 
+                            id="name${candidate.id}"
+                            onblur="saveCandidateEdit('${candidate.id}')">${candidate.name}</h2>
+                        <p class="candidate-desc" 
+                           contenteditable="${isAdmin() && !votingActive ? 'true' : 'false'}"
+                           id="desc${candidate.id}"
+                           onblur="saveCandidateEdit('${candidate.id}')">${candidate.description || 'แก้ไขรายละเอียดได้'}</p>
+                        ${isAdmin() && !votingActive ? `
+                            <div style="margin-top: 10px;">
+                                <input type="text" 
+                                       id="img${candidate.id}" 
+                                       value="${candidate.image_url || ''}"
+                                       placeholder="URL รูปภาพ"
+                                       onblur="saveCandidateEdit('${candidate.id}')"
+                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="vote-section">
+                    <button onclick="vote('${candidate.id}')" class="vote-btn" id="btn${candidate.id}">
+                        <span>โหวต</span>
+                    </button>
+                    <div class="vote-count">
+                        <span class="count-label">คะแนน:</span>
+                        <span class="count-number" id="vote${candidate.id}">${candidate.votes || 0}</span>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(candidateDiv);
+        });
+}
+
+// VERSION 1413: Load candidates with full data
 async function loadCandidatesFromDB() {
     try {
         const { data, error } = await supabaseClient
             .from("candidates")
             .select("*")
-            .order("id");
+            .order("display_order");
 
         if (error) {
             console.error("Error loading candidates:", error);
@@ -540,19 +524,21 @@ async function loadCandidatesFromDB() {
 
         if (data && data.length > 0) {
             console.log("✅ Loaded candidates from DB:", data);
+            allCandidates = data;
+            
+            // Update voteCounts object dynamically
             data.forEach(candidate => {
                 voteCounts[candidate.id] = candidate.votes || 0;
-                updateVoteDisplay(candidate.id);
-                
-                // Update name if exists
-                const nameElement = document.getElementById(`name${candidate.id}`);
-                if (nameElement && candidate.name) {
-                    nameElement.innerText = candidate.name;
-                }
             });
+            
+            // Re-render candidates
+            renderCandidates();
+            
             console.log("Current vote counts:", voteCounts);
         } else {
             console.log("No candidates found in database");
+            allCandidates = [];
+            renderCandidates();
         }
     } catch (error) {
         console.error("Error in loadCandidatesFromDB:", error);
@@ -612,15 +598,15 @@ async function loadVotingSession() {
     }
 }
 
-// Update vote display - NO MORE localStorage for vote counts
+// VERSION 1413: Update vote display for dynamic candidates
 function updateVoteDisplay(candidateId) {
     const element = document.getElementById(`vote${candidateId}`);
-    if (element) {
+    if (element && voteCounts[candidateId] !== undefined) {
         element.innerText = voteCounts[candidateId];
     }
 }
 
-// Setup Realtime Subscription - IMPROVED - VERSION 1412
+// Setup Realtime Subscription - VERSION 1413
 function setupRealtimeSubscription() {
     // Listen to candidates table for vote count updates
     supabaseClient
@@ -651,7 +637,7 @@ function setupRealtimeSubscription() {
             }
         });
 
-    // Also listen to votes table for immediate feedback
+    // Listen to votes table for immediate feedback
     supabaseClient
         .channel("votes_channel")
         .on(
@@ -690,6 +676,26 @@ function setupRealtimeSubscription() {
         .subscribe((status) => {
             console.log("Session channel status:", status);
         });
+    
+    // VERSION 1413: Listen to candidates table for add/delete
+    supabaseClient
+        .channel("candidates_manage_channel")
+        .on(
+            "postgres_changes",
+            {
+                event: "*",
+                schema: "public",
+                table: "candidates"
+            },
+            (payload) => {
+                console.log("👥 Candidates changed:", payload);
+                // Reload all candidates
+                loadCandidatesFromDB();
+            }
+        )
+        .subscribe((status) => {
+            console.log("Candidates management channel status:", status);
+        });
 }
 
 // Show Results
@@ -704,15 +710,15 @@ async function showResults() {
     resultsSection.style.display = "block";
 
     // Find winner
-    const candidates = [
-        { id: "A", name: document.getElementById("nameA").innerText, votes: voteCounts.A },
-        { id: "B", name: document.getElementById("nameB").innerText, votes: voteCounts.B },
-        { id: "C", name: document.getElementById("nameC").innerText, votes: voteCounts.C }
-    ];
+    const candidates = allCandidates.map(c => ({
+        id: c.id,
+        name: c.name,
+        votes: voteCounts[c.id] || 0
+    }));
 
     candidates.sort((a, b) => b.votes - a.votes);
     const winner = candidates[0];
-    const totalVotes = voteCounts.A + voteCounts.B + voteCounts.C;
+    const totalVotes = candidates.reduce((sum, c) => sum + c.votes, 0);
 
     // Display winner
     winnerDiv.innerHTML = `
@@ -730,7 +736,7 @@ async function showResults() {
         return `
             <div class="result-item ${isWinner ? 'winner-item' : ''}">
                 <div>
-                    <h3>${isWinner ? '🥇' : index === 1 ? '🥈' : '🥉'} ${candidate.name}</h3>
+                    <h3>${isWinner ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '📊'} ${candidate.name}</h3>
                     <p style="color: #666;">อันดับที่ ${index + 1}</p>
                 </div>
                 <div style="text-align: right;">
@@ -760,15 +766,215 @@ function showStatus(message, type = "info") {
     }
 }
 
-// Initialize app - VERSION 1412
+// =========================================
+// VERSION 1413: Candidate Management
+// =========================================
+
+// VERSION 1413: Save candidate edits
+async function saveCandidateEdit(candidateId) {
+    if (!isAdmin()) return;
+    
+    const nameEl = document.getElementById(`name${candidateId}`);
+    const descEl = document.getElementById(`desc${candidateId}`);
+    const imgEl = document.getElementById(`img${candidateId}`);
+    
+    if (!nameEl) return;
+    
+    const name = nameEl.innerText.trim();
+    const description = descEl ? descEl.innerText.trim() : '';
+    const image_url = imgEl ? imgEl.value.trim() : '';
+    
+    try {
+        const { error } = await supabaseClient.rpc("update_candidate", {
+            p_id: candidateId,
+            p_name: name,
+            p_description: description,
+            p_image_url: image_url
+        });
+        
+        if (error) throw error;
+        
+        console.log(`✅ Updated candidate ${candidateId}`);
+        
+        // Update local data
+        const candidate = allCandidates.find(c => c.id === candidateId);
+        if (candidate) {
+            candidate.name = name;
+            candidate.description = description;
+            candidate.image_url = image_url;
+        }
+        
+        // Re-render to update image
+        renderCandidates();
+        
+    } catch (error) {
+        console.error("Error updating candidate:", error);
+        showStatus("❌ ไม่สามารถบันทึกการแก้ไขได้: " + error.message, "error");
+    }
+}
+
+// VERSION 1413: Modal management
+function setupCandidateModal() {
+    const modal = document.getElementById("addCandidateModal");
+    const showBtn = document.getElementById("showAddCandidate");
+    const closeBtn = modal?.querySelector(".close");
+    const cancelBtn = document.getElementById("cancelAddCandidate");
+    const addBtn = document.getElementById("addCandidateBtn");
+    
+    if (showBtn) {
+        showBtn.onclick = () => {
+            if (!isAdmin()) {
+                showStatus("⚠️ เฉพาะผู้ดูแลระบบเท่านั้น", "error");
+                return;
+            }
+            modal.style.display = "block";
+        };
+    }
+    
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            modal.style.display = "none";
+            clearModalFields();
+        };
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            modal.style.display = "none";
+            clearModalFields();
+        };
+    }
+    
+    if (addBtn) {
+        addBtn.onclick = addNewCandidate;
+    }
+    
+    // Close modal when clicking outside
+    window.onclick = (event) => {
+        if (event.target === modal) {
+            modal.style.display = "none";
+            clearModalFields();
+        }
+    };
+}
+
+function clearModalFields() {
+    document.getElementById("newCandidateId").value = "";
+    document.getElementById("newCandidateName").value = "";
+    document.getElementById("newCandidateDesc").value = "";
+    document.getElementById("newCandidateImage").value = "";
+}
+
+// VERSION 1413: Add new candidate
+async function addNewCandidate() {
+    if (!isAdmin()) {
+        showStatus("⚠️ เฉพาะผู้ดูแลระบบเท่านั้น", "error");
+        return;
+    }
+    
+    const id = document.getElementById("newCandidateId").value.trim().toUpperCase();
+    const name = document.getElementById("newCandidateName").value.trim();
+    const description = document.getElementById("newCandidateDesc").value.trim() || "แก้ไขรายละเอียดได้";
+    const image_url = document.getElementById("newCandidateImage").value.trim() || "https://via.placeholder.com/150";
+    
+    // Validation
+    if (!id) {
+        showStatus("⚠️ กรุณากรอกรหัสผู้สมัคร", "error");
+        return;
+    }
+    
+    if (!/^[A-Z0-9]+$/.test(id)) {
+        showStatus("⚠️ รหัสผู้สมัครต้องเป็นตัวอักษร A-Z หรือตัวเลข 0-9 เท่านั้น", "error");
+        return;
+    }
+    
+    if (!name) {
+        showStatus("⚠️ กรุณากรอกชื่อผู้สมัคร", "error");
+        return;
+    }
+    
+    // Check if ID already exists
+    if (allCandidates.find(c => c.id === id)) {
+        showStatus("⚠️ รหัสผู้สมัครนี้มีอยู่แล้ว", "error");
+        return;
+    }
+    
+    try {
+        showStatus("🔄 กำลังเพิ่มผู้สมัคร...", "info");
+        
+        const { error } = await supabaseClient.rpc("add_candidate", {
+            p_id: id,
+            p_name: name,
+            p_description: description,
+            p_image_url: image_url
+        });
+        
+        if (error) throw error;
+        
+        console.log(`✅ Added candidate ${id}`);
+        showStatus("✅ เพิ่มผู้สมัครสำเร็จ!", "success");
+        
+        // Close modal
+        document.getElementById("addCandidateModal").style.display = "none";
+        clearModalFields();
+        
+        // Reload candidates
+        await loadCandidatesFromDB();
+        
+    } catch (error) {
+        console.error("Error adding candidate:", error);
+        showStatus("❌ ไม่สามารถเพิ่มผู้สมัครได้: " + error.message, "error");
+    }
+}
+
+// VERSION 1413: Delete candidate
+async function deleteCandidate(candidateId) {
+    if (!isAdmin()) {
+        showStatus("⚠️ เฉพาะผู้ดูแลระบบเท่านั้น", "error");
+        return;
+    }
+    
+    const candidate = allCandidates.find(c => c.id === candidateId);
+    if (!candidate) return;
+    
+    if (!confirm(`คุณต้องการลบ "${candidate.name}" ใช่หรือไม่?\n\n⚠️ การลบจะลบคะแนนโหวตของผู้สมัครนี้ด้วย`)) {
+        return;
+    }
+    
+    try {
+        showStatus("🔄 กำลังลบผู้สมัคร...", "info");
+        
+        const { error } = await supabaseClient.rpc("delete_candidate", {
+            p_id: candidateId
+        });
+        
+        if (error) throw error;
+        
+        console.log(`✅ Deleted candidate ${candidateId}`);
+        showStatus("✅ ลบผู้สมัครสำเร็จ!", "success");
+        
+        // Remove from local array
+        delete voteCounts[candidateId];
+        
+        // Reload candidates
+        await loadCandidatesFromDB();
+        
+    } catch (error) {
+        console.error("Error deleting candidate:", error);
+        showStatus("❌ ไม่สามารถลบผู้สมัครได้: " + error.message, "error");
+    }
+}
+
+// Initialize app - VERSION 1413
 async function init() {
-    console.log("🚀 Initializing app... VERSION 1412");
+    console.log("🚀 Initializing app... VERSION 1413");
     
     setupAuthListener();
     setupLoginButton();
     setupTimerControls();
+    setupCandidateModal(); // VERSION 1413
     
-    // CRITICAL: Always load vote counts from database on page load
+    // Load candidates first
     await loadCandidatesFromDB();
     
     // VERSION 1412: Load voting session state
@@ -780,14 +986,15 @@ async function init() {
     // Check session every 5 seconds
     sessionCheckInterval = setInterval(loadVotingSession, 5000);
     
-    console.log("✅ App initialized! VERSION 1412");
-    console.log("Current vote counts:", voteCounts);
+    console.log("✅ App initialized! VERSION 1413");
+    console.log("Current candidates:", allCandidates);
     console.log("Voting active:", votingActive);
 }
 
-// Make vote function global
+// Make functions globally accessible
 window.vote = vote;
-window.resetVotes = resetVotes;
+window.saveCandidateEdit = saveCandidateEdit;
+window.deleteCandidate = deleteCandidate;
 
 // Start the app when DOM is ready
 if (document.readyState === 'loading') {
