@@ -382,7 +382,7 @@ async function loadCandidatesFromDB() {
         }
 
         if (data && data.length > 0) {
-            console.log("Loaded candidates from DB:", data);
+            console.log("✅ Loaded candidates from DB:", data);
             data.forEach(candidate => {
                 voteCounts[candidate.id] = candidate.votes || 0;
                 updateVoteDisplay(candidate.id);
@@ -393,7 +393,7 @@ async function loadCandidatesFromDB() {
                     nameElement.innerText = candidate.name;
                 }
             });
-            console.log("Vote counts updated:", voteCounts);
+            console.log("Current vote counts:", voteCounts);
         } else {
             console.log("No candidates found in database");
         }
@@ -424,7 +424,7 @@ function setupRealtimeSubscription() {
                 table: "candidates"
             },
             (payload) => {
-                console.log("Vote count updated via realtime:", payload);
+                console.log("🔔 Vote count updated via realtime:", payload);
                 const candidateId = payload.new.id;
                 if (voteCounts[candidateId] !== undefined) {
                     voteCounts[candidateId] = payload.new.votes;
@@ -453,7 +453,7 @@ function setupRealtimeSubscription() {
                 table: "votes"
             },
             (payload) => {
-                console.log("New vote detected:", payload);
+                console.log("🗳️ New vote detected:", payload);
                 // Refresh vote counts after new vote
                 loadCandidatesFromDB();
             }
@@ -533,7 +533,7 @@ function showStatus(message, type = "info") {
 
 // Initialize app
 async function init() {
-    console.log("Initializing app...");
+    console.log("🚀 Initializing app...");
     
     setupAuthListener();
     setupLoginButton();
@@ -545,7 +545,7 @@ async function init() {
     // Setup realtime updates
     setupRealtimeSubscription();
     
-    console.log("App initialized!");
+    console.log("✅ App initialized!");
     console.log("Current vote counts:", voteCounts);
 }
 
