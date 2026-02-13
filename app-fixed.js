@@ -16,7 +16,7 @@ let votingActive = false;
 let hasVoted = false;
 let endTime = null;
 
-// Vote counts (local state)
+// Vote counts (synced with database)
 const voteCounts = {
     A: 0,
     B: 0,
@@ -57,14 +57,11 @@ function updateUIForAuthState() {
 // Update timer section visibility based on admin status
 function updateTimerVisibility() {
     const timerControls = document.getElementById("timerControls");
-    const adminWarning = document.getElementById("adminWarning");
     
     if (isAdmin()) {
         if (timerControls) timerControls.style.display = "block";
-        if (adminWarning) adminWarning.style.display = "none";
     } else {
         if (timerControls) timerControls.style.display = "none";
-        if (adminWarning) adminWarning.style.display = "block";
     }
 }
 
@@ -77,7 +74,7 @@ function setupLoginButton() {
                 const { data, error } = await supabaseClient.auth.signInWithOAuth({
                     provider: "google",
                     options: {
-                        redirectTo: "https://votes-olive.vercel.app"
+                        redirectTo: window.location.origin
                     }
                 });
                 if (error) throw error;
@@ -100,10 +97,14 @@ async function checkIfUserVoted() {
             .eq("user_id", user.id)
             .maybeSingle();
 
+        if (error) throw error;
+
         if (data) {
             hasVoted = true;
             disableVotingButtons();
             showStatus("✓ คุณได้ทำการโหวตไปแล้ว", "info");
+        } else {
+            hasVoted = false;
         }
     } catch (error) {
         console.error("Error checking vote:", error);
@@ -340,16 +341,15 @@ async function vote(candidateId) {
 
         if (incrementError) {
             console.error("Increment error:", incrementError);
-            // Continue anyway - update local count
+            throw incrementError;
         }
-
-        // Update local count
-        voteCounts[candidateId]++;
-        updateVoteDisplay(candidateId);
 
         hasVoted = true;
         disableVotingButtons();
-        showStatus("✓ โ���วตสำเร็จ! ขอบคุณที่ร่วมลงคะแนน", "success");
+        showStatus("✓ โหวตสำเร็จ! ขอบคุณที่ร่วมลงคะแนน", "success");
+
+        // Reload vote counts from database to ensure accuracy
+        await loadCandidatesFromDB();
 
     } catch (error) {
         console.error("Error details:", error);
@@ -367,7 +367,7 @@ function disableVotingButtons() {
     if (btnC) btnC.disabled = true;
 }
 
-// Load vote counts from database
+// Load vote counts from database - CRITICAL FIX
 async function loadCandidatesFromDB() {
     try {
         const { data, error } = await supabaseClient
@@ -377,13 +377,12 @@ async function loadCandidatesFromDB() {
 
         if (error) {
             console.error("Error loading candidates:", error);
-            console.log("Using local vote counts only");
-            loadVoteCounts();
+            showStatus("⚠️ ไม่สามารถโหลดข้อมูลผู้สมัครได้", "error");
             return;
         }
 
         if (data && data.length > 0) {
-            console.log("Loaded candidates:", data);
+            console.log("Loaded candidates from DB:", data);
             data.forEach(candidate => {
                 voteCounts[candidate.id] = candidate.votes || 0;
                 updateVoteDisplay(candidate.id);
@@ -394,59 +393,26 @@ async function loadCandidatesFromDB() {
                     nameElement.innerText = candidate.name;
                 }
             });
+            console.log("Vote counts updated:", voteCounts);
         } else {
-            console.log("No candidates found, using defaults");
-            loadVoteCounts();
+            console.log("No candidates found in database");
         }
     } catch (error) {
         console.error("Error in loadCandidatesFromDB:", error);
-        loadVoteCounts();
+        showStatus("❌ เกิดข้อผิดพลาดในการโหลดข้อมูล", "error");
     }
 }
 
-// Load vote counts (from localStorage)
-function loadVoteCounts() {
-    const saved = localStorage.getItem("voteCounts");
-    if (saved) {
-        const counts = JSON.parse(saved);
-        voteCounts.A = counts.A || 0;
-        voteCounts.B = counts.B || 0;
-        voteCounts.C = counts.C || 0;
-        
-        updateVoteDisplay("A");
-        updateVoteDisplay("B");
-        updateVoteDisplay("C");
-    }
-}
-
+// Update vote display - NO MORE localStorage for vote counts
 function updateVoteDisplay(candidateId) {
     const element = document.getElementById(`vote${candidateId}`);
     if (element) {
         element.innerText = voteCounts[candidateId];
     }
-    localStorage.setItem("voteCounts", JSON.stringify(voteCounts));
 }
 
-// Setup Realtime Subscription
+// Setup Realtime Subscription - IMPROVED
 function setupRealtimeSubscription() {
-    // Listen to votes table
-    supabaseClient
-        .channel("votes_channel")
-        .on(
-            "postgres_changes",
-            {
-                event: "INSERT",
-                schema: "public",
-                table: "votes"
-            },
-            (payload) => {
-                console.log("New vote detected:", payload);
-            }
-        )
-        .subscribe((status) => {
-            console.log("Votes channel status:", status);
-        });
-
     // Listen to candidates table for vote count updates
     supabaseClient
         .channel("candidates_channel")
@@ -458,21 +424,50 @@ function setupRealtimeSubscription() {
                 table: "candidates"
             },
             (payload) => {
-                console.log("Vote count updated:", payload);
+                console.log("Vote count updated via realtime:", payload);
                 const candidateId = payload.new.id;
                 if (voteCounts[candidateId] !== undefined) {
                     voteCounts[candidateId] = payload.new.votes;
                     updateVoteDisplay(candidateId);
+                    
+                    // Show notification
+                    showStatus(`📊 คะแนนอัพเดท: ${payload.new.name} ได้รับ ${payload.new.votes} คะแนน`, "info");
                 }
             }
         )
         .subscribe((status) => {
-            console.log("Candidates channel status:", status);
+            console.log("Realtime subscription status:", status);
+            if (status === "SUBSCRIBED") {
+                console.log("✅ Realtime updates active");
+            }
+        });
+
+    // Also listen to votes table for immediate feedback
+    supabaseClient
+        .channel("votes_channel")
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "votes"
+            },
+            (payload) => {
+                console.log("New vote detected:", payload);
+                // Refresh vote counts after new vote
+                loadCandidatesFromDB();
+            }
+        )
+        .subscribe((status) => {
+            console.log("Votes channel status:", status);
         });
 }
 
 // Show Results
-function showResults() {
+async function showResults() {
+    // Always load fresh data from database before showing results
+    await loadCandidatesFromDB();
+    
     const resultsSection = document.getElementById("results");
     const winnerDiv = document.getElementById("winner");
     const finalResultsDiv = document.getElementById("finalResults");
@@ -543,10 +538,15 @@ async function init() {
     setupAuthListener();
     setupLoginButton();
     setupTimerControls();
+    
+    // CRITICAL: Always load vote counts from database on page load
     await loadCandidatesFromDB();
+    
+    // Setup realtime updates
     setupRealtimeSubscription();
     
     console.log("App initialized!");
+    console.log("Current vote counts:", voteCounts);
 }
 
 // Make vote function global
