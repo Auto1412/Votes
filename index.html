@@ -40,14 +40,12 @@
                 </div>
                 <button id="startTimer" class="start-btn">เริ่มการโหวต</button>
                 
-                <!-- Reset Button -->
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
-                    <button id="resetVotes" class="reset-btn" style="background: #dc3545; width: 100%;">
-                        🗑️ รีเซ็ตการโหวตทั้งหมด
+                <!-- VERSION 1413: Candidate Management -->
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e0e0e0;" id="candidateManagement">
+                    <h3>📝 จัดการผู้สมัคร</h3>
+                    <button id="showAddCandidate" class="add-candidate-btn" style="background: #28a745; width: 100%; margin-top: 10px;">
+                        ➕ เพิ่มผู้สมัครใหม่
                     </button>
-                    <p style="color: #666; font-size: 0.85em; margin-top: 8px; text-align: center;">
-                        ⚠️ จะลบคะแนนและข้อมูลการโหวตทั้งหมด
-                    </p>
                 </div>
             </div>
             
@@ -55,6 +53,40 @@
                 <h3>⏰ เวลาคงเหลือ</h3>
                 <div class="countdown" id="countdown">00:30:00</div>
                 <button id="stopTimer" class="stop-btn">หยุดการโหวต</button>
+            </div>
+        </div>
+
+        <!-- VERSION 1413: Add Candidate Modal -->
+        <div id="addCandidateModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>➕ เพิ่มผู้สมัครใหม่</h2>
+                
+                <div class="form-group">
+                    <label>รหัสผู้สมัคร (A-Z, ไม่ซ้ำ):</label>
+                    <input type="text" id="newCandidateId" placeholder="เช่น D, E, F" maxlength="3" style="text-transform: uppercase;">
+                </div>
+                
+                <div class="form-group">
+                    <label>ชื่อ:</label>
+                    <input type="text" id="newCandidateName" placeholder="ชื่อผู้สมัคร">
+                </div>
+                
+                <div class="form-group">
+                    <label>รายละเอียด:</label>
+                    <textarea id="newCandidateDesc" placeholder="รายละเอียดผู้สมัคร" rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>URL รูปภาพ:</label>
+                    <input type="text" id="newCandidateImage" placeholder="https://example.com/image.jpg">
+                    <small>วาง URL รูปภาพ หรือใช้รูปเริ่มต้น</small>
+                </div>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                    <button id="addCandidateBtn" class="start-btn">เพิ่มผู้สมัคร</button>
+                    <button id="cancelAddCandidate" class="stop-btn">ยกเลิก</button>
+                </div>
             </div>
         </div>
 
@@ -68,68 +100,13 @@
             <div id="finalResults"></div>
         </div>
 
-        <!-- Candidates Section -->
+        <!-- VERSION 1413: Dynamic Candidates Section -->
         <div class="candidates-section" id="candidatesSection">
-            <div class="candidate">
-                <div class="candidate-info">
-                    <img src="https://thethaiger.com/th/wp-content/uploads/2026/01/4HusbandTae.jpg" alt="ผู้สมัคร A" class="candidate-img">
-                    <div class="candidate-details">
-                        <h2 class="candidate-name" contenteditable="true" id="nameA">ผู้สมัคร A</h2>
-                        <p class="candidate-desc" contenteditable="true">แก้ไขชื่อและรายละเอียดได้</p>
-                    </div>
-                </div>
-                <div class="vote-section">
-                    <button onclick="vote('A')" class="vote-btn" id="btnA">
-                        <span>โหวต</span>
-                    </button>
-                    <div class="vote-count">
-                        <span class="count-label">คะแนน:</span>
-                        <span class="count-number" id="voteA">0</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="candidate">
-                <div class="candidate-info">
-                    <img src="https://thethaiger.com/th/wp-content/uploads/2026/01/4HusbandTae.jpg" alt="ผู้สมัคร B" class="candidate-img">
-                    <div class="candidate-details">
-                        <h2 class="candidate-name" contenteditable="true" id="nameB">ผู้สมัคร B</h2>
-                        <p class="candidate-desc" contenteditable="true">แก้ไขชื่อและรายละเอียดได้</p>
-                    </div>
-                </div>
-                <div class="vote-section">
-                    <button onclick="vote('B')" class="vote-btn" id="btnB">
-                        <span>โหวต</span>
-                    </button>
-                    <div class="vote-count">
-                        <span class="count-label">คะแนน:</span>
-                        <span class="count-number" id="voteB">0</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="candidate">
-                <div class="candidate-info">
-                    <img src="https://thethaiger.com/th/wp-content/uploads/2026/01/4HusbandTae.jpg" alt="ผู้สมัคร C" class="candidate-img">
-                    <div class="candidate-details">
-                        <h2 class="candidate-name" contenteditable="true" id="nameC">ผู้สมัคร C</h2>
-                        <p class="candidate-desc" contenteditable="true">แก้ไขชื่อและรายละเอียดได้</p>
-                    </div>
-                </div>
-                <div class="vote-section">
-                    <button onclick="vote('C')" class="vote-btn" id="btnC">
-                        <span>โหวต</span>
-                    </button>
-                    <div class="vote-count">
-                        <span class="count-label">คะแนน:</span>
-                        <span class="count-number" id="voteC">0</span>
-                    </div>
-                </div>
-            </div>
+            <!-- Candidates will be loaded dynamically -->
         </div>
 
         <footer>
-            <p>ระบบโหวตออนไลน์ | พัฒนาด้วย Supabase</p>
+            <p>ระบบโหวตออนไลน์ | VERSION 1413 | พัฒนาด้วย Supabase</p>
         </footer>
     </div>
 
