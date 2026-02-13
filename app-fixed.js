@@ -6,7 +6,7 @@ const { createClient } = supabase;
 
 const supabaseClient = createClient(
     "https://onyapxclnfsdgcwisnhx.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueWFweGNsbmZzZGdjd2lzbmh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4ODQzMDksImV4cCI6MjA4NjQ2MDMwOX0.MkzFOJ_Ucs_t7Led5smGsj4deX_rtPbAHXAD_BaI-ns"
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueWFweGNsbmZzZGdjd2lzbmgiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc3MDg4NDMwOSwiZXhwIjoyMDg2NDYwMzA5fQ.MkzFOJ_Ucs_t7Led5smGsj4deX_rtP[...]"
 );
 
 // Global variables
@@ -36,6 +36,7 @@ function setupAuthListener() {
         if (user) {
             checkIfUserVoted();
             updateTimerVisibility();
+            updateVotingStatusDisplay();
         }
     });
 }
@@ -54,17 +55,33 @@ function updateUIForAuthState() {
     }
 }
 
+// Update voting status display for all users
+function updateVotingStatusDisplay() {
+    const statusDiv = document.getElementById("votingStatus");
+    if (!statusDiv) return;
+
+    if (votingActive) {
+        statusDiv.innerHTML = `
+            <div class="voting-status active">
+                <span class="status-badge">🟢 การโหวตกำลังดำเนิน</span>
+                <div class="countdown-display" id="statusCountdown">00:30:00</div>
+            </div>
+        `;
+        statusDiv.style.display = "block";
+    } else {
+        statusDiv.innerHTML = `<div class="voting-status inactive"><span class="status-badge">⚪ การโหวตยังไม่เริ่ม</span></div>`;
+        statusDiv.style.display = "block";
+    }
+}
+
 // Update timer section visibility based on admin status
 function updateTimerVisibility() {
     const timerControls = document.getElementById("timerControls");
-    const adminWarning = document.getElementById("adminWarning");
     
     if (isAdmin()) {
         if (timerControls) timerControls.style.display = "block";
-        if (adminWarning) adminWarning.style.display = "none";
     } else {
         if (timerControls) timerControls.style.display = "none";
-        if (adminWarning) adminWarning.style.display = "block";
     }
 }
 
@@ -183,6 +200,7 @@ function restoreSavedTimer() {
             document.getElementById("results").style.display = "none";
             document.getElementById("candidatesSection").classList.remove("voting-closed");
             
+            updateVotingStatusDisplay();
             showStatus("🔄 กลับมาที่เซสชันโหวต", "info");
             
             // Resume countdown
@@ -212,6 +230,25 @@ function startVoting() {
         return;
     }
 
+    // Reset vote counts and hasVoted flag
+    voteCounts.A = 0;
+    voteCounts.B = 0;
+    voteCounts.C = 0;
+    hasVoted = false;
+    
+    // Update vote display
+    updateVoteDisplay("A");
+    updateVoteDisplay("B");
+    updateVoteDisplay("C");
+    
+    // Re-enable voting buttons
+    const btnA = document.getElementById("btnA");
+    const btnB = document.getElementById("btnB");
+    const btnC = document.getElementById("btnC");
+    if (btnA) btnA.disabled = false;
+    if (btnB) btnB.disabled = false;
+    if (btnC) btnC.disabled = false;
+
     // Save timer settings
     localStorage.setItem("timerHours", hours);
     localStorage.setItem("timerMinutes", minutes);
@@ -223,6 +260,7 @@ function startVoting() {
     // Save voting state
     localStorage.setItem("votingActive", "true");
     localStorage.setItem("endTime", endTime);
+    localStorage.removeItem("voteCounts");
 
     // Show timer display, hide controls
     document.getElementById("timerControls").style.display = "none";
@@ -230,6 +268,7 @@ function startVoting() {
     document.getElementById("results").style.display = "none";
     document.getElementById("candidatesSection").classList.remove("voting-closed");
 
+    updateVotingStatusDisplay();
     showStatus("🗳️ การโหวตเริ่มแล้ว!", "success");
 
     // Start countdown
@@ -252,10 +291,20 @@ function updateCountdown() {
 
     const display = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
     document.getElementById("countdown").innerText = display;
+    
+    // Update status countdown for all users
+    const statusCountdown = document.getElementById("statusCountdown");
+    if (statusCountdown) {
+        statusCountdown.innerText = display;
+    }
 
     // Warning when less than 1 minute
     if (remaining < 60000) {
         document.getElementById("countdown").style.color = "#dc3545";
+        if (statusCountdown) statusCountdown.style.color = "#dc3545";
+    } else {
+        document.getElementById("countdown").style.color = "#667eea";
+        if (statusCountdown) statusCountdown.style.color = "#667eea";
     }
 }
 
@@ -265,7 +314,7 @@ function pad(num) {
 
 function stopVoting() {
     if (!isAdmin()) {
-        showStatus("⚠️ เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถหยุดการโหวต", "error");
+        showStatus("⚠️ เฉพาะผู้ดูแลระ��บเท่านั้นที่สามารถหยุดการโหวต", "error");
         return;
     }
     
@@ -290,6 +339,8 @@ function endVoting() {
     document.getElementById("candidatesSection").classList.add("voting-closed");
     disableVotingButtons();
 
+    updateVotingStatusDisplay();
+    
     // Show results
     showResults();
 }
@@ -349,7 +400,7 @@ async function vote(candidateId) {
 
         hasVoted = true;
         disableVotingButtons();
-        showStatus("✓ โ���วตสำเร็จ! ขอบคุณที่ร่วมลงคะแนน", "success");
+        showStatus("✓ โหวตสำเร็จ! ขอบคุณที่ร่วมลงคะแนน", "success");
 
     } catch (error) {
         console.error("Error details:", error);
@@ -545,6 +596,7 @@ async function init() {
     setupTimerControls();
     await loadCandidatesFromDB();
     setupRealtimeSubscription();
+    updateVotingStatusDisplay();
     
     console.log("App initialized!");
 }
