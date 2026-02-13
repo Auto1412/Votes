@@ -33,32 +33,42 @@ async function loadVotingStatus() {
         startCountdown();
     }
 }
+
+function renderCountdown(remainingMs) {
+    const h = Math.floor(remainingMs / 3600000);
+    const m = Math.floor((remainingMs % 3600000) / 60000);
+    const s = Math.floor((remainingMs % 60000) / 1000);
+
+    const display =
+        String(h).padStart(2, "0") + ":" +
+        String(m).padStart(2, "0") + ":" +
+        String(s).padStart(2, "0");
+
+    const el = document.getElementById("countdown");
+    if (el) el.innerText = display;
+}
+
 function startCountdown() {
+    if (!endTime) return;
     if (votingTimer) clearInterval(votingTimer);
 
-    votingTimer = setInterval(() => {
+    const tick = () => {
         const remaining = endTime - Date.now();
 
         if (remaining <= 0) {
             clearInterval(votingTimer);
+            votingTimer = null;
             votingActive = false;
+            endTime = null;
             updateVotingStatusDisplay();
             return;
         }
 
-        const h = Math.floor(remaining / 3600000);
-        const m = Math.floor((remaining % 3600000) / 60000);
-        const s = Math.floor((remaining % 60000) / 1000);
+        renderCountdown(remaining);
+    };
 
-        const display = 
-            String(h).padStart(2, '0') + ":" +
-            String(m).padStart(2, '0') + ":" +
-            String(s).padStart(2, '0');
-
-        const el = document.getElementById("countdown");
-        if (el) el.innerText = display;
-
-    }, 1000);
+    tick();
+    votingTimer = setInterval(tick, 1000);
 }
 
 // Global variables
@@ -135,19 +145,6 @@ async function loadCandidatesFromDB() {
     });
 }
 
-async function loadVotingStatus() {
-    const { data } = await supabaseClient
-        .from("voting_settings")
-        .select("*")
-        .eq("id", 1)
-        .single();
-
-    if (!data) return;
-
-    votingActive = data.is_active;
-    updateVotingStatusDisplay();
-}
-
 // ===============================
 // REALTIME
 // ===============================
@@ -167,6 +164,16 @@ function setupRealtimeSubscription() {
             { event: "UPDATE", schema: "public", table: "voting_settings" },
             payload => {
                 votingActive = payload.new.is_active;
+                endTime = payload.new.end_time
+                    ? new Date(payload.new.end_time).getTime()
+                    : null;
+
+                if (votingActive && endTime) {
+                    startCountdown();
+                } else if (votingTimer) {
+                    clearInterval(votingTimer);
+                }
+
                 updateVotingStatusDisplay();
             }
         )
@@ -178,19 +185,82 @@ function setupRealtimeSubscription() {
 // ===============================
 function updateVotingStatusDisplay() {
     const statusDiv = document.getElementById("votingStatus");
+    const timerControls = document.getElementById("timerControls");
+    const timerDisplay = document.getElementById("timerDisplay");
+
     if (!statusDiv) return;
+
+    statusDiv.style.display = "block";
 
     if (votingActive) {
         statusDiv.innerHTML =
             `<div class="voting-status active">
-                🟢 การโหวตกำลังเปิด
+                <span class="status-badge">🟢 การโหวตกำลังเปิด</span>
             </div>`;
+
+        if (timerControls) timerControls.style.display = "none";
+        if (timerDisplay) timerDisplay.style.display = "block";
     } else {
         statusDiv.innerHTML =
             `<div class="voting-status inactive">
-                🔴 การโหวตปิดอยู่
+                <span class="status-badge">🔴 การโหวตปิดอยู่</span>
             </div>`;
+
+        if (timerControls) timerControls.style.display = "block";
+        if (timerDisplay) timerDisplay.style.display = "none";
+        if (votingTimer) {
+            clearInterval(votingTimer);
+            votingTimer = null;
+        }
+        const countdownEl = document.getElementById("countdown");
+        if (countdownEl) countdownEl.innerText = "00:00:00";
     }
+}
+
+function normalizeTimeInput(inputId, min, max) {
+    const input = document.getElementById(inputId);
+    if (!input) return 0;
+
+    const rawValue = Number.parseInt(input.value, 10);
+    const safeValue = Number.isNaN(rawValue) ? min : Math.min(max, Math.max(min, rawValue));
+
+    input.value = safeValue;
+    return safeValue;
+}
+
+function applyPreset(hours, minutes, seconds) {
+    const hoursInput = document.getElementById("hours");
+    const minutesInput = document.getElementById("minutes");
+    const secondsInput = document.getElementById("seconds");
+
+    if (!hoursInput || !minutesInput || !secondsInput) return;
+
+    hoursInput.value = hours;
+    minutesInput.value = minutes;
+    secondsInput.value = seconds;
+}
+
+function setupPresetButtons() {
+    document.querySelectorAll(".preset-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            applyPreset(btn.dataset.hours ?? 0, btn.dataset.minutes ?? 0, btn.dataset.seconds ?? 0);
+        });
+    });
+}
+
+function setupTimeInputValidation() {
+    [
+        { id: "hours", min: 0, max: 23 },
+        { id: "minutes", min: 0, max: 59 },
+        { id: "seconds", min: 0, max: 59 }
+    ].forEach(({ id, min, max }) => {
+        const input = document.getElementById(id);
+        if (!input) return;
+
+        const normalize = () => normalizeTimeInput(id, min, max);
+        input.addEventListener("change", normalize);
+        input.addEventListener("blur", normalize);
+    });
 }
 
 // ===============================
@@ -256,9 +326,9 @@ async function startVoting() {
         return;
     }
 
-    const hours = parseInt(document.getElementById("hours").value) || 0;
-    const minutes = parseInt(document.getElementById("minutes").value) || 0;
-    const seconds = parseInt(document.getElementById("seconds").value) || 0;
+    const hours = normalizeTimeInput("hours", 0, 23);
+    const minutes = normalizeTimeInput("minutes", 0, 59);
+    const seconds = normalizeTimeInput("seconds", 0, 59);
 
     const totalSeconds = hours * 3600 + minutes * 60 + seconds;
 
@@ -330,6 +400,8 @@ function showStatus(message, type = "info") {
 async function init() {
     setupAuthListener();
     setupLoginButton();
+    setupPresetButtons();
+    setupTimeInputValidation();
 
     // ✅ ผูกปุ่มเริ่มโหวต
     const startBtn = document.getElementById("startTimer");
