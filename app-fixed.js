@@ -59,7 +59,7 @@ const supabaseClient = createClient(
          const el = document.getElementById("countdown");
          if (el) el.innerText = display;
  
-@@ -113,108 +114,149 @@ function setupLoginButton() {
+function setupLoginButton() {
              options: { redirectTo: window.location.origin }
          });
      };
