@@ -6,7 +6,7 @@ const { createClient } = supabase;
 
 const supabaseClient = createClient(
     "https://onyapxclnfsdgcwisnhx.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueWFweGNsbmZzZGdjd2lzbmh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4ODQzMDksImV4cCI6MjA4NjQ2MDMwOX0.MkzFOJ_Ucs_t7Led5smGsj4deX_rtPbAHXAD_BaI-ns"
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueWFweGNsbmZzZGdjd2lzbmgiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc3MDg4NDMwOSwiZXhwIjoyMDg2NDYwMzA5fQ.MkzFOJ_Ucs_t7Led5smGsj4deX_rtP[...]"
 );
 
 // Global variables
@@ -117,10 +117,17 @@ async function checkIfUserVoted() {
             .eq("user_id", user.id)
             .maybeSingle();
 
+        if (error) {
+            console.error("Error checking vote:", error);
+            return;
+        }
+
         if (data) {
             hasVoted = true;
             disableVotingButtons();
             showStatus("✓ คุณได้ทำการโหวตไปแล้ว", "info");
+        } else {
+            hasVoted = false;
         }
     } catch (error) {
         console.error("Error checking vote:", error);
@@ -213,7 +220,7 @@ function restoreSavedTimer() {
     }
 }
 
-function startVoting() {
+async function startVoting() {
     if (!isAdmin()) {
         showStatus("⚠️ เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเริ่มการโหวต", "error");
         return;
@@ -230,7 +237,31 @@ function startVoting() {
         return;
     }
 
-    // Reset vote counts and hasVoted flag
+    // Clear old votes and reset vote counts
+    try {
+        const { error: deleteError } = await supabaseClient
+            .from("votes")
+            .delete()
+            .neq("user_id", "");
+
+        if (deleteError) {
+            console.error("Error clearing votes:", deleteError);
+        }
+
+        // Reset vote counts in database
+        const { error: resetError } = await supabaseClient
+            .from("candidates")
+            .update({ votes: 0 })
+            .neq("id", "");
+
+        if (resetError) {
+            console.error("Error resetting votes:", resetError);
+        }
+    } catch (error) {
+        console.error("Error during reset:", error);
+    }
+
+    // Reset local state
     voteCounts.A = 0;
     voteCounts.B = 0;
     voteCounts.C = 0;
@@ -314,7 +345,7 @@ function pad(num) {
 
 function stopVoting() {
     if (!isAdmin()) {
-        showStatus("⚠️ เฉพาะผู้ดูแลระ��บเท่านั้นที่สามารถหยุดการโหวต", "error");
+        showStatus("⚠️ เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถหยุดการโหวต", "error");
         return;
     }
     
@@ -368,6 +399,20 @@ async function vote(candidateId) {
     }
 
     try {
+        // Double-check if user has already voted in database
+        const { data: existingVote, error: checkError } = await supabaseClient
+            .from("votes")
+            .select("*")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+        if (existingVote) {
+            hasVoted = true;
+            disableVotingButtons();
+            showStatus("⚠️ คุณได้ทำการโหวตไปแล้ว", "error");
+            return;
+        }
+
         // Record vote in database
         const { data: voteData, error: voteError } = await supabaseClient
             .from("votes")
@@ -380,7 +425,15 @@ async function vote(candidateId) {
 
         if (voteError) {
             console.error("Vote error:", voteError);
-            throw voteError;
+            if (voteError.code === '23505') {
+                // Unique constraint violation
+                hasVoted = true;
+                disableVotingButtons();
+                showStatus("⚠️ คุณได้ทำการโหวตไปแล้ว", "error");
+            } else {
+                showStatus("❌ เกิดข้อผิดพลาด: " + voteError.message, "error");
+            }
+            return;
         }
 
         console.log("Vote recorded:", voteData);
@@ -428,8 +481,6 @@ async function loadCandidatesFromDB() {
 
         if (error) {
             console.error("Error loading candidates:", error);
-            console.log("Using local vote counts only");
-            loadVoteCounts();
             return;
         }
 
@@ -445,28 +496,9 @@ async function loadCandidatesFromDB() {
                     nameElement.innerText = candidate.name;
                 }
             });
-        } else {
-            console.log("No candidates found, using defaults");
-            loadVoteCounts();
         }
     } catch (error) {
         console.error("Error in loadCandidatesFromDB:", error);
-        loadVoteCounts();
-    }
-}
-
-// Load vote counts (from localStorage)
-function loadVoteCounts() {
-    const saved = localStorage.getItem("voteCounts");
-    if (saved) {
-        const counts = JSON.parse(saved);
-        voteCounts.A = counts.A || 0;
-        voteCounts.B = counts.B || 0;
-        voteCounts.C = counts.C || 0;
-        
-        updateVoteDisplay("A");
-        updateVoteDisplay("B");
-        updateVoteDisplay("C");
     }
 }
 
@@ -475,29 +507,10 @@ function updateVoteDisplay(candidateId) {
     if (element) {
         element.innerText = voteCounts[candidateId];
     }
-    localStorage.setItem("voteCounts", JSON.stringify(voteCounts));
 }
 
 // Setup Realtime Subscription
 function setupRealtimeSubscription() {
-    // Listen to votes table
-    supabaseClient
-        .channel("votes_channel")
-        .on(
-            "postgres_changes",
-            {
-                event: "INSERT",
-                schema: "public",
-                table: "votes"
-            },
-            (payload) => {
-                console.log("New vote detected:", payload);
-            }
-        )
-        .subscribe((status) => {
-            console.log("Votes channel status:", status);
-        });
-
     // Listen to candidates table for vote count updates
     supabaseClient
         .channel("candidates_channel")
