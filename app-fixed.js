@@ -239,10 +239,10 @@ async function startVoting() {
 
     // Clear old votes and reset vote counts
     try {
-        const { error: deleteError } = await supabaseClient
-            .from("votes")
-            .delete()
-            .neq("user_id", "");
+      const { error: deleteError } = await supabaseClient
+    .from("votes")
+    .delete()
+    .not("user_id", "is", null);
 
         if (deleteError) {
             console.error("Error clearing votes:", deleteError);
