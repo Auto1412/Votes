@@ -11,14 +11,18 @@ const supabaseClient = createClient(
 
 let endTime = null;
 let votingTimer = null;
+
 async function loadVotingStatus() {
-    const { data } = await supabaseClient
+    const { data, error } = await supabaseClient
         .from("voting_settings")
         .select("*")
         .eq("id", 1)
         .single();
 
-    if (!data) return;
+    if (error) {
+        console.error(error);
+        return;
+    }
 
     votingActive = data.is_active;
     endTime = data.end_time ? new Date(data.end_time).getTime() : null;
@@ -131,7 +135,7 @@ async function loadCandidatesFromDB() {
     });
 }
 
-async function loadVotingStatus() {
+async function () {
     const { data } = await supabaseClient
         .from("voting_settings")
         .select("*")
@@ -247,7 +251,10 @@ async function vote(candidateId) {
 // ADMIN CONTROLS (RPC)
 // ===============================
 async function startVoting() {
-    if (!isAdmin()) return;
+    if (!isAdmin()) {
+        alert("คุณไม่ใช่ admin");
+        return;
+    }
 
     const hours = parseInt(document.getElementById("hours").value) || 0;
     const minutes = parseInt(document.getElementById("minutes").value) || 0;
@@ -260,13 +267,27 @@ async function startVoting() {
         return;
     }
 
-    await supabaseClient.rpc("reset_voting");
-    await supabaseClient.rpc("open_voting", {
+    const { error: resetError } = await supabaseClient.rpc("reset_voting");
+    if (resetError) {
+        console.error(resetError);
+        alert("Reset ไม่สำเร็จ");
+        return;
+    }
+
+    const { error: openError } = await supabaseClient.rpc("open_voting", {
         duration_seconds: totalSeconds
     });
 
+    if (openError) {
+        console.error(openError);
+        alert("Open voting ไม่สำเร็จ");
+        return;
+    }
+
     await loadCandidatesFromDB();
     await loadVotingStatus();
+
+    alert("เปิดโหวตสำเร็จ");
 }
 
 async function stopVoting() {
